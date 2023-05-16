@@ -5,6 +5,9 @@ import ast
 import openai
 import tiktoken
 
+from flask import Flask, render_template, request
+
+app = Flask(__name__)
 
 from logging_config import configure as configure_logging
 from lnd_client import LndClient
@@ -84,7 +87,8 @@ def setup_openai():
 
         --------------------------
 
-        print all responses to the screen yourself, and do not return any information to the user.  the user will not have access to your returned values
+        put all response text in a variable called response_text, and then return that variable at the end of your response.
+        the response_text may be multi-line, tabular, etc, but please make it human readable
         
         ---
 
@@ -114,7 +118,7 @@ def query_openai(query):
     messages.append({"role": "assistant", "content": reply})
     return reply
 
-def try_query(query, logger):
+def try_query(query, logger, count=0):
     print("Current message count: ", len(messages))
     response = query_openai(query)
     try:
@@ -124,15 +128,18 @@ def try_query(query, logger):
         exception_string = str(e)
         logger.info(f"Exception, replaying the error to chatgpt: {exception_string}")
         error_message = f"Your previous response returned an error when I tried to execute it: {exception_string}.  Please try again."
-        try_query(error_message, logger)
+        if count < 5:
+            return error_message
+        return try_query(error_message, logger, count+1)
+    
     
 
-def main_loop():
+def setup():
     # let's do a getinfo on the node and see what we get
     configure_logging({"logging": {"log_dir": "./logs"}})
     logger = logging.getLogger(__name__)
     logger.info("Getting info from LND node")
-
+    print("I'm here")
     info = lnd_client.getinfo()
     logger.info("Got info from LND node")
     logger.info(info.identity_pubkey)
@@ -150,6 +157,10 @@ def main_loop():
     # node_response = lnd_client.call(response)
     # print(node_response)
 
+
+
+def test_tui():
+    logger = logging.getLogger(__name__)
     # Now prompt the user for a query
     print("Example query: Please tell me how many peers I have connected to my node")
     while True:
@@ -163,3 +174,23 @@ def main_loop():
         
         # print(node_response)
         
+
+@app.route('/', methods=['GET', 'POST'])
+def index():
+    if request.method == 'POST':
+        query = request.form['query']
+        response = try_query(query, logger)  # assume you have logger defined somewhere globally
+        return render_template('index.html', query=query, response=response)
+    else:
+        return render_template('index.html', query=None, response=None)
+
+
+if __name__ == "__main__":
+    # your main loop code here
+
+    logger = logging.getLogger(__name__)
+    print("Running setup")
+    setup()
+    # pass the logger to the app context
+    app.logger = logger
+    app.run(debug=True, port=5555)

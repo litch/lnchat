@@ -20,6 +20,7 @@ class LndClient():
     def __init__(self):
         self._client = LndClientSubstitute()
         self._logger = logging.getLogger(__name__)
+        self._query_logger = logging.getLogger("query_logger")
 
 
     def build(lnd_config):
@@ -113,10 +114,11 @@ class LndClient():
     
     def call(self, query):
         self._logger.info(f"Calling {query}")
+        self._query_logger.info(f"Calling {query}")
         try:
-            namespace = {'self': self}
+            namespace = {'self': self, 'response_text': None}
             exec(f"result = {query}", globals(), namespace)
-            return namespace['result']
+            return namespace['response_text']
         except Exception as e:
             print("Error: ", e)
             raise e

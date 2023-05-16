@@ -3,3 +3,4 @@
 *.cert
 *.macaroon
 logs/*
+*.pyc
